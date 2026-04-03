@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Thermal Sentinel — Dashboard</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#111317;--surface:#1c1f24;--border:rgba(255,255,255,0.1);--border-hover:rgba(255,255,255,0.22);--text:#e8e8e8;--text-sec:#8a8a8a;--text-ter:#555;--radius-md:8px;--radius-lg:12px;--card-glass:rgba(20,20,25,0.15)}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;line-height:1.5;min-height:100vh}
+#galaxyContainer{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;opacity:0.85}
+#galaxyContainer canvas{display:block;width:100%!important;height:100%!important}
+header,.deny-banner,.stats-bar,.controls-bar,.main{position:relative;z-index:1}
+.card{background:var(--card-glass);backdrop-filter:blur(24px) saturate(150%);-webkit-backdrop-filter:blur(24px) saturate(150%);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px;box-shadow:0 8px 32px 0 rgba(0,0,0,0.3);transition:background 0.35s ease;position:relative;isolation:isolate;overflow:visible!important}
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;background:var(--surface);border-bottom:0.5px solid var(--border)}
+.logo{font-size:16px;font-weight:600;letter-spacing:0.04em}
+.logo span{color:#E24B4A}
+.header-right{display:flex;align-items:center;gap:12px}
+.live-pill{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:500;color:#3B6D11;background:#EAF3DE;padding:4px 10px;border-radius:20px}
+.live-dot{width:6px;height:6px;border-radius:50%;background:#639922;animation:blink 1s step-end infinite}
+.api-pill{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:500;padding:4px 10px;border-radius:20px;transition:all .3s}
+.api-pill.connected{color:#185FA5;background:#E6F1FB}
+.api-pill.offline{color:#A32D2D;background:#FCEBEB}
+.api-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.api-pill.connected .api-dot{background:#378ADD;animation:blink 1.5s step-end infinite}
+.api-pill.offline .api-dot{background:#E24B4A}
+@keyframes blink{50%{opacity:0}}
+.header-id{font-size:11px;font-family:monospace;color:var(--text-sec)}
+.deny-banner{display:none;align-items:center;justify-content:center;gap:10px;background:#FCEBEB;border-bottom:1px solid #F09595;padding:10px 24px;font-size:13px;font-weight:600;color:#A32D2D;animation:flash 0.7s step-end infinite}
+.deny-banner.show{display:flex}
+@keyframes flash{50%{opacity:0.5}}
+
+/* ── STATS BAR (new — live API numbers) ── */
+.stats-bar{display:flex;align-items:center;gap:0;background:var(--surface);border-bottom:0.5px solid var(--border);overflow-x:auto}
+.stat-cell{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 24px;border-right:0.5px solid var(--border);min-width:110px;gap:2px}
+.stat-cell:last-child{border-right:none}
+.stat-num{font-size:20px;font-weight:600;font-family:monospace;line-height:1}
+.stat-lbl{font-size:10px;color:var(--text-sec);text-transform:uppercase;letter-spacing:0.07em}
+.stat-num.red{color:#E24B4A}.stat-num.orange{color:#EF9F27}.stat-num.green{color:#639922}.stat-num.blue{color:#378ADD}
+
+.controls-bar{display:flex;align-items:center;gap:10px;padding:12px 24px;background:var(--surface);border-bottom:0.5px solid var(--border);flex-wrap:wrap}
+.controls-label{font-size:11px;color:var(--text-sec);margin-right:4px}
+.ctrl-btn{font-size:12px;padding:5px 14px;border-radius:var(--radius-md);border:0.5px solid var(--border-hover);background:transparent;color:var(--text);cursor:pointer;transition:background 0.15s}
+.ctrl-btn:hover{background:var(--bg)}
+.ctrl-btn.active{background:var(--bg);font-weight:500}
+.ctrl-select{font-size:12px;padding:5px 10px;border-radius:var(--radius-md);border:0.5px solid var(--border-hover);background:transparent;color:var(--text);cursor:pointer}
+.ctrl-divider{width:1px;height:20px;background:var(--border)}
+.main{display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:auto auto auto;gap:12px;padding:16px 24px}
+.card-label{font-size:11px;font-weight:500;color:var(--text-sec);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:10px}
+.span2{grid-column:span 2}.span3{grid-column:span 3}
+.tab-row{display:flex;border-bottom:0.5px solid var(--border);margin-bottom:12px}
+.tab{font-size:12px;padding:6px 14px;cursor:pointer;color:var(--text-sec);border-bottom:2px solid transparent;margin-bottom:-0.5px;transition:color 0.15s}
+.tab.active{color:var(--text);border-bottom:2px solid var(--text);font-weight:500}
+.thermal-wrap{position:relative;height:300px;border-radius:var(--radius-md);overflow:hidden;background:#07121e}
+#thermalCanvas{width:100%;height:100%;display:block}
+.t-overlay{position:absolute;top:8px;left:10px;font-size:10px;font-weight:600;color:rgba(0,220,255,0.85);font-family:monospace}
+.t-corner{position:absolute;top:8px;right:10px;font-size:10px;color:rgba(180,210,230,0.6);font-family:monospace}
+.upload-area{height:220px;border-radius:var(--radius-md);border:1.5px dashed var(--border-hover);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;cursor:pointer;position:relative;transition:background 0.2s}
+.upload-area:hover{background:var(--bg)}
+.upload-area input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.upload-icon-circle{width:40px;height:40px;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center}
+.upload-icon-circle svg{width:18px;height:18px;stroke:var(--text-sec)}
+.upload-title{font-size:13px;font-weight:500}
+.upload-sub{font-size:11px;color:var(--text-sec)}
+.upload-actions{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.img-preview-wrap{position:relative;height:220px;border-radius:var(--radius-md);overflow:hidden;background:#07121e;display:none}
+.img-preview-wrap img{width:100%;height:100%;object-fit:cover;display:block}
+#scanOverlayCanvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.img-scanning-bar{position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,transparent 0%,rgba(0,229,255,0.07) 50%,transparent 100%);animation:scanDown 1.6s ease-in-out infinite;display:none}
+@keyframes scanDown{0%,100%{transform:translateY(-100%)}50%{transform:translateY(100%)}}
+.img-result-overlay{position:absolute;inset:0;display:none;flex-direction:column;justify-content:flex-end;padding:10px;background:linear-gradient(0deg,rgba(7,18,30,0.75) 0%,transparent 60%)}
+.img-result-overlay.show{display:flex}
+.img-tag{display:inline-block;font-size:10px;font-family:monospace;padding:2px 8px;border-radius:3px;margin:2px;border:1px solid}
+.img-tag-red{background:rgba(226,75,74,0.25);border-color:rgba(226,75,74,0.6);color:#fcc}
+.img-tag-yellow{background:rgba(239,159,39,0.25);border-color:rgba(239,159,39,0.6);color:#fdc}
+.img-tag-blue{background:rgba(55,138,221,0.25);border-color:rgba(55,138,221,0.6);color:#bdf}
+.scan-progress{display:none;flex-direction:column;gap:6px;margin-top:10px}
+.scan-progress.show{display:flex}
+.prog-track{height:4px;border-radius:2px;background:var(--bg);overflow:hidden}
+.prog-fill{height:4px;border-radius:2px;background:#378ADD;width:0%;transition:width 0.15s linear}
+.prog-label{font-size:11px;color:var(--text-sec);font-family:monospace}
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:500;padding:3px 10px;border-radius:20px}
+.badge-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.badge-green{background:#EAF3DE;color:#3B6D11}.badge-green .badge-dot{background:#639922}
+.badge-yellow{background:#FAEEDA;color:#854F0B}.badge-yellow .badge-dot{background:#EF9F27}
+.badge-red{background:#FCEBEB;color:#A32D2D;animation:flash 0.8s step-end infinite}.badge-red .badge-dot{background:#E24B4A}
+.delta-num{font-size:40px;font-weight:500;line-height:1;font-family:monospace}
+.severity-bar{width:100%;height:7px;border-radius:4px;margin-top:12px;background:linear-gradient(to right,#378ADD,#EF9F27,#E24B4A);position:relative}
+.severity-needle{position:absolute;top:-5px;width:14px;height:14px;border-radius:50%;background:var(--surface);border:2px solid var(--text);transform:translateX(-50%);transition:left 1s cubic-bezier(0.34,1.56,0.64,1)}
+.sev-labels{display:flex;justify-content:space-between;margin-top:5px;font-size:10px;color:var(--text-ter)}
+.gauge-wrap{display:flex;flex-direction:column;align-items:center;gap:8px;margin-top:4px}
+.health-bar-track{width:100%;height:10px;border-radius:5px;background:var(--bg);overflow:hidden}
+.health-bar-fill{height:100%;border-radius:5px;transition:width 1.2s cubic-bezier(0.34,1.56,0.64,1),background 0.5s}
+.zone-row{margin-bottom:8px}
+.zone-meta{display:flex;justify-content:space-between;font-size:11px;color:var(--text-sec);margin-bottom:3px}
+.zone-meta span:last-child{font-weight:500;color:var(--text)}
+.zone-track{height:6px;border-radius:3px;background:var(--bg)}
+.zone-fill{height:6px;border-radius:3px;transition:width 0.8s ease,background 0.5s}
+.log-table{width:100%;border-collapse:collapse;font-size:12px}
+.log-table th{font-size:11px;font-weight:500;color:var(--text-sec);text-align:left;padding:4px 8px 8px;border-bottom:0.5px solid var(--border);text-transform:uppercase;letter-spacing:0.05em}
+.log-table td{padding:7px 8px;color:var(--text);border-bottom:0.5px solid var(--border)}
+.log-table tr:last-child td{border-bottom:none}
+.src-pill{font-size:10px;padding:2px 7px;border-radius:3px;font-weight:500}
+.src-live{background:#E6F1FB;color:#185FA5}
+.src-image{background:#FAEEDA;color:#854F0B}
+.right-stack{display:flex;flex-direction:column;gap:12px}
+.status-sub{font-size:11px;color:var(--text-sec);margin-top:6px}
+
+/* tickets strip */
+.tickets-strip{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.ticket-item{font-size:11px;padding:3px 10px;border-radius:4px;font-family:monospace}
+.ticket-high{background:rgba(226,75,74,0.18);color:#fcc;border:1px solid rgba(226,75,74,0.4)}
+.ticket-med{background:rgba(239,159,39,0.18);color:#fdc;border:1px solid rgba(239,159,39,0.4)}
+
+/* border glow */
+.card::before{content:"";position:absolute;inset:0;border-radius:var(--radius-lg);z-index:-1;pointer-events:none;border:1px solid transparent;background:radial-gradient(at 80% 55%,hsla(268,100%,76%,0.12) 0px,transparent 50%),radial-gradient(at 69% 34%,hsla(349,100%,74%,0.12) 0px,transparent 50%),radial-gradient(at 8% 6%,hsla(136,100%,78%,0.12) 0px,transparent 50%),radial-gradient(at 41% 38%,hsla(192,100%,64%,0.12) 0px,transparent 50%),linear-gradient(rgba(194,153,255,0.12) 0 100%);opacity:0;transition:opacity 0.75s ease-in-out;-webkit-mask:conic-gradient(from var(--cursor-angle,45deg) at center,black 25%,transparent 40%,transparent 60%,black 75%) border-box,linear-gradient(#fff 0 100%) padding-box;mask:conic-gradient(from var(--cursor-angle,45deg) at center,black 25%,transparent 40%,transparent 60%,black 75%) border-box,linear-gradient(#fff 0 100%) padding-box;-webkit-mask-composite:destination-out;mask-composite:exclude}
+.card:hover::before{opacity:1;transition:opacity 0.25s ease-out}
+</style>
+</head>
+<body>
+<div id="galaxyContainer"></div>
+
+<header>
+  <div class="logo">AZORIAN <span>·</span> Thermal Sentinel</div>
+  <div class="header-right">
+    <span class="header-id" id="headerContainerId">MSCU-4821-K</span>
+    <div class="api-pill offline" id="apiPill"><span class="api-dot"></span><span id="apiPillTxt">API Offline</span></div>
+    <div class="live-pill"><span class="live-dot"></span>System Online</div>
+  </div>
+</header>
+
+<div class="deny-banner" id="denyBanner">&#9888;&nbsp; DENY GATE ENTRY — CRITICAL THERMAL FAILURE DETECTED</div>
+
+<div class="controls-bar">
+  <span class="controls-label">Simulate:</span>
+  <button class="ctrl-btn active" onclick="setMode('normal')">Normal</button>
+  <button class="ctrl-btn" onclick="setMode('moderate')">Moderate</button>
+  <button class="ctrl-btn" onclick="setMode('critical')">Critical</button>
+  <div class="ctrl-divider"></div>
+  <span class="controls-label">Container:</span>
+  <select class="ctrl-select" id="containerSel" onchange="onContainerChange(this.value)">
+    <option>MSCU-4821-K</option><option>TGHU-3302-A</option><option>HLCU-9910-Z</option>
+  </select>
+</div>
+
+<!-- LIVE STATS BAR — below controls -->
+<div class="stats-bar" id="statsBar">
+  <div class="stat-cell"><div class="stat-num blue" id="stTotal">--</div><div class="stat-lbl">Total Scans</div></div>
+  <div class="stat-cell"><div class="stat-num red"  id="stCritical">--</div><div class="stat-lbl">Critical</div></div>
+  <div class="stat-cell"><div class="stat-num orange" id="stLeaks">--</div><div class="stat-lbl">Alerts Fired</div></div>
+  <div class="stat-cell"><div class="stat-num orange" id="stTickets">--</div><div class="stat-lbl">Moderate</div></div>
+  <div class="stat-cell"><div class="stat-num green" id="stSafe">--</div><div class="stat-lbl">Safe</div></div>
+  <div class="stat-cell"><div class="stat-num blue" id="stRate">--%</div><div class="stat-lbl">Detection Rate</div></div>
+</div>
+
+<div class="main">
+
+  <!-- SCAN PANEL — full width so image is fully visible -->
+  <div class="card span3">
+    <div class="tab-row">
+      <div class="tab active" id="tabBtnLive" onclick="switchTab('live')">Live scan</div>
+      <div class="tab" id="tabBtnUpload" onclick="switchTab('upload')">Upload thermal image</div>
+    </div>
+    <!-- LIVE SCAN TAB: shows real frame from detector -->
+    <div id="tabLive">
+      <div class="thermal-wrap" style="position:relative;">
+        <img id="liveFrame"
+             src="" alt="Waiting for detector..."
+             style="width:100%;height:100%;object-fit:contain;display:block;background:#07121e;"/>
+        <div class="t-overlay" id="liveOverlayTxt">WAITING FOR FRAME ●</div>
+        <div class="t-corner" id="canvasContainerLabel">MSCU-4821-K</div>
+      </div>
+      <div style="display:flex;justify-content:center;gap:10px;margin-top:10px;">
+        <button class="ctrl-btn" onclick="sendCmd('prev')" title="Previous image">&#8592; Prev</button>
+        <span style="font-size:11px;color:var(--text-sec);align-self:center;" id="frameCounter">--</span>
+        <button class="ctrl-btn" onclick="sendCmd('next')" title="Next image">Next &#8594;</button>
+      </div>
+    </div>
+    <div id="tabUpload" style="display:none;">
+      <div class="upload-area" id="uploadArea">
+        <input type="file" id="fileInput" accept="image/*" onchange="handleUpload(event)"/>
+        <div class="upload-icon-circle">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+        </div>
+        <div class="upload-title">Drop thermal image here</div>
+        <div class="upload-sub">JPG, PNG or TIFF — thermal or standard photo</div>
+      </div>
+      <div class="img-preview-wrap" id="imgPreviewWrap">
+        <img id="imgPreview" src="" alt="thermal scan"/>
+        <canvas id="scanOverlayCanvas"></canvas>
+        <div class="img-scanning-bar" id="scanningBar"></div>
+        <div class="img-result-overlay" id="imgResultOverlay"></div>
+      </div>
+      <div class="scan-progress" id="scanProgress">
+        <div class="prog-label" id="progLabel">Initializing YOLOv8...</div>
+        <div class="prog-track"><div class="prog-fill" id="progFill"></div></div>
+      </div>
+      <div class="upload-actions">
+        <button class="ctrl-btn" onclick="document.getElementById('fileInput').click()">Choose file</button>
+        <button class="ctrl-btn" id="rescanBtn" style="display:none;" onclick="rescan()">Re-scan</button>
+        <button class="ctrl-btn" id="clearBtn" style="display:none;" onclick="clearUpload()">Clear</button>
+        <span id="uploadFileName" style="font-size:11px;color:var(--text-sec);"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATUS (1 col) -->
+  <div class="card">
+    <div class="card-label">Status</div>
+    <div class="badge badge-green" id="statusBadge"><span class="badge-dot"></span>Normal</div>
+    <div class="status-sub" id="statusMsg">No anomalies detected</div>
+    <div class="tickets-strip" id="ticketsStrip"></div>
+  </div>
+
+  <!-- SEVERITY DELTA (2 col) -->
+  <div class="card span2">
+    <div class="card-label">Severity matrix — &#916;T</div>
+    <div style="display:flex;flex-direction:column;align-items:center;padding:6px 0;">
+      <div class="delta-num" id="deltaNum" style="color:#378ADD;">7°C</div>
+      <div style="font-size:11px;color:var(--text-sec);margin-top:3px;">leak temp − ambient temp</div>
+      <div class="severity-bar" style="width:100%;"><div class="severity-needle" id="needle" style="left:18%;"></div></div>
+      <div class="sev-labels" style="width:100%;"><span>Low &lt;10</span><span>Moderate 10–25</span><span>Critical &gt;25</span></div>
+    </div>
+  </div>
+
+  <!-- GAUGE -->
+  <div class="card">
+    <div class="card-label">Thermal escape area</div>
+    <div class="gauge-wrap">
+      <svg width="130" height="84" viewBox="0 0 130 84">
+        <path d="M15,74 A55,55 0 0,1 115,74" fill="none" stroke="#ddd" stroke-width="10" stroke-linecap="round"/>
+        <path id="gaugeArc" d="M15,74 A55,55 0 0,1 115,74" fill="none" stroke="#378ADD" stroke-width="10" stroke-linecap="round" stroke-dasharray="172" stroke-dashoffset="145"/>
+        <text x="65" y="72" text-anchor="middle" font-size="15" font-weight="500" fill="currentColor" id="gaugeText">0.3</text>
+        <text x="65" y="82" text-anchor="middle" font-size="9" fill="#888">m²</text>
+      </svg>
+      <div style="font-size:11px;color:var(--text-sec);text-align:center;max-width:140px;" id="escapeLabel">Minor seal gap (~5% door area)</div>
+    </div>
+  </div>
+
+  <!-- HEALTH -->
+  <div class="card">
+    <div class="card-label">Insulation health</div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+      <span style="font-size:22px;font-weight:500;" id="healthPct">82%</span>
+      <span style="font-size:11px;color:var(--text-sec);" id="maintDate">Next service: Sep 2025</span>
+    </div>
+    <div class="health-bar-track"><div class="health-bar-fill" id="healthFill" style="width:82%;background:#639922;"></div></div>
+  </div>
+
+  <!-- ZONES -->
+  <div class="card">
+    <div class="card-label">Leak zone breakdown</div>
+    <div id="leakZones" style="margin-top:4px;"></div>
+  </div>
+
+  <!-- LOG -->
+  <div class="card span3">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div style="font-size:12px;font-weight:500;color:var(--text-sec);text-transform:uppercase;letter-spacing:0.07em;">Scan history</div>
+      <div style="font-size:11px;color:var(--text-sec);" id="lastUpdated">Auto-refreshing every 5s</div>
+    </div>
+    <table class="log-table">
+      <thead>
+        <tr>
+          <th>Time</th><th>Container</th><th>Source</th>
+          <th>Status</th><th>Peak Temp</th><th>&#916;T</th><th>Verdict</th>
+        </tr>
+      </thead>
+      <tbody id="logBody"></tbody>
+    </table>
+  </div>
+
+</div><!-- end main -->
+
+<script>
+/* ══════════════════════════════════════════════════
+   API CONFIG — change port if your backend differs
+══════════════════════════════════════════════════ */
+/* Auto-detect: works locally (port 8000) AND on Render (same origin) */
+const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ? 'http://127.0.0.1:8000'
+  : window.location.origin;
+let apiOnline = false;
+
+/* ─── LOCAL MODE DATA (fallback when API offline) ─── */
+const modes = {
+  normal:   {leaks:[{x:.18,y:.55,r:.06,t:27},{x:.7,y:.4,r:.04,t:22}],  delta:7,  area:.3, health:82, msg:'No anomalies detected'},
+  moderate: {leaks:[{x:.22,y:.5,r:.14,t:45},{x:.6,y:.35,r:.09,t:38},{x:.8,y:.65,r:.07,t:35}], delta:18, area:1.1, health:61, msg:'Significant energy loss'},
+  critical: {leaks:[{x:.3,y:.5,r:.28,t:65},{x:.65,y:.45,r:.2,t:60}],  delta:32, area:2.8, health:29, msg:'Structural failure — deny entry'}
+};
+let mode='normal', current={...modes.normal};
+
+/* ─── API HELPERS ─── */
+async function apiFetch(path, opts={}) {
+  try {
+    const r = await fetch(API+path, opts);
+    if (!r.ok) throw new Error(r.status);
+    return await r.json();
+  } catch(e) { return null; }
+}
+
+function setAPIStatus(online) {
+  apiOnline = online;
+  const pill = document.getElementById('apiPill');
+  const txt  = document.getElementById('apiPillTxt');
+  pill.className = 'api-pill ' + (online ? 'connected' : 'offline');
+  txt.textContent = online ? 'API Live' : 'API Offline';
+}
+
+/* ─── FETCH LIVE STATS ─── */
+async function fetchStats() {
+  const data = await apiFetch('/stats');
+  if (!data) { setAPIStatus(false); return; }
+  setAPIStatus(true);
+  document.getElementById('stTotal').textContent    = data.total_scans ?? '--';
+  document.getElementById('stLeaks').textContent    = data.alerts_fired ?? '--';
+  document.getElementById('stSafe').textContent     = data.safe ?? '--';
+  document.getElementById('stCritical').textContent = data.critical ?? '--';
+  document.getElementById('stTickets').textContent  = data.moderate ?? '--';
+  const rate = data.total_scans > 0
+    ? (((data.critical + data.moderate) / data.total_scans)*100).toFixed(1)+'%'
+    : '--%';
+  document.getElementById('stRate').textContent = rate;
+}
+
+/* ─── FETCH SCAN HISTORY ─── */
+async function fetchScans() {
+  const scans = await apiFetch('/scans?limit=15');
+  if (!scans || !scans.length) return;
+
+  const body = document.getElementById('logBody');
+  body.innerHTML = '';
+  scans.forEach(s => {
+    const t = new Date(s.timestamp).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    /* main.py status values: CRITICAL / MODERATE / SAFE */
+    const isCrit = s.status === 'CRITICAL';
+    const isMod  = s.status === 'MODERATE';
+    const verdict = isCrit
+      ? '<span style="color:#A32D2D;font-weight:600;">Deny</span>'
+      : isMod
+        ? '<span style="color:#854F0B;font-weight:600;">Flag</span>'
+        : '<span style="color:#3B6D11;font-weight:600;">Clear</span>';
+    const srcPill = '<span class="src-pill src-live">Live</span>';
+    const temp = s.thermal_max_temp ? s.thermal_max_temp.toFixed(1)+'°C' : '--';
+    const dt   = s.delta_t != null ? s.delta_t.toFixed(1)+'°C' : '--';
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${t}</td>
+      <td style="font-family:monospace;font-size:11px;">${s.container_id||'--'}</td>
+      <td>${srcPill}</td>
+      <td style="font-size:11px;color:${isCrit?'#E24B4A':isMod?'#EF9F27':'#639922'}">${s.status}</td>
+      <td style="font-family:monospace">${temp}</td>
+      <td>${dt}</td>
+      <td>${verdict}</td>`;
+    body.appendChild(row);
+  });
+  document.getElementById('lastUpdated').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+
+  /* Mirror latest scan into UI panels */
+  const latest = scans[0];
+  if (latest && latest.thermal_max_temp > 0) {
+    const dt = Math.max(0, latest.delta_t || 0);
+    current.delta  = +dt.toFixed(1);
+    current.area   = +(dt * 0.06).toFixed(1);
+    current.health = Math.max(15, Math.round(100 - dt * 1.8));
+    current.msg    = latest.status;
+    if (latest.status === 'CRITICAL')  current.leaks = modes.critical.leaks;
+    else if (latest.status === 'MODERATE') current.leaks = modes.moderate.leaks;
+    else current.leaks = modes.normal.leaks;
+    updateUI();
+  }
+}
+
+/* ─── FETCH OPEN TICKETS (not in main.py — skipped gracefully) ─── */
+async function fetchTickets() {
+  /* main.py doesn't have /tickets — show hottest container from /stats instead */
+  const data = await apiFetch('/stats');
+  if (!data || !data.hottest_container) return;
+  const strip = document.getElementById('ticketsStrip');
+  const h = data.hottest_container;
+  strip.innerHTML = `<span class="ticket-item ticket-high">Hottest: ${h.container_id} @ ${h.thermal_max_temp.toFixed(1)}°C</span>`;
+}
+
+/* ─── PUSH TO API (simulate button) — matches main.py ScanInput schema ─── */
+async function triggerAPISimulate() {
+  const peakMap = {normal:22, moderate:45, critical:68};
+  const prefixes = ['TRHU','MSCU','HLXU','GESU','TEMU'];
+  const randId = prefixes[Math.floor(Math.random()*prefixes.length)] + Math.floor(Math.random()*9000000+1000000);
+  const payload = {
+    container_id:     document.getElementById('containerSel').value.replace(/-/g,'').toUpperCase() || randId,
+    thermal_max_temp: peakMap[mode] + Math.random()*8,
+    confidence_score: +(0.75 + Math.random()*0.24).toFixed(2),
+    gate_id:          'GATE-1',
+    ambient_temp:     28.0
+  };
+  const res = await apiFetch('/scan', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload)
+  });
+  if (res) { setTimeout(()=>{fetchStats();fetchScans();fetchTickets();}, 300); }
+}
+
+/* ─── POLL EVERY 5s ─── */
+async function refreshAll() {
+  await fetchStats();
+  await fetchScans();
+  await fetchTickets();
+}
+refreshAll();
+setInterval(refreshAll, 2000);  // 2s fallback poll
+
+/* ─── WEBSOCKET ─── instantly refresh on new frame or alert */
+function connectWS() {
+  const ws = new WebSocket('ws://127.0.0.1:8000/ws/alerts');
+  ws.onmessage = e => {
+    const d = JSON.parse(e.data);
+    if (d.event === 'NEW_FRAME') {
+      refreshFrame();
+      fetchStats();
+      fetchScans();
+      fetchTickets();
+    } else if (d.event === 'LEAK_ALERT') {
+      fetchStats(); fetchScans();
+    }
+  };
+  ws.onclose = () => setTimeout(connectWS, 2000);  // auto-reconnect
+}
+connectWS();
+
+/* ─── LIVE FRAME REFRESH ─── */
+let frameErrCount = 0;
+function refreshFrame() {
+  const img = document.getElementById('liveFrame');
+  const ts  = Date.now();
+  const newSrc = `http://127.0.0.1:8000/frame?t=${ts}`;
+  img.onload = () => {
+    frameErrCount = 0;
+    document.getElementById('liveOverlayTxt').textContent = 'LIVE ●';
+  };
+  img.onerror = () => {
+    frameErrCount++;
+    if (frameErrCount > 3)
+      document.getElementById('liveOverlayTxt').textContent = 'WAITING FOR DETECTOR ●';
+  };
+  img.src = newSrc;
+}
+setInterval(refreshFrame, 1000);  // fallback poll every 1s
+refreshFrame();
+
+/* ─── SEND COMMAND TO DETECTOR ─── */
+async function sendCmd(action) {
+  await apiFetch('/command', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({action})
+  });
+}
+
+/* ── also try /simulate endpoint built into main.py ── */
+async function runAPISimulate() {
+  const res = await apiFetch('/simulate', {method:'POST'});
+  if (res) { setTimeout(()=>{fetchStats();fetchScans();fetchTickets();}, 300); }
+}
+
+/* ─── LOCAL CONTROLS (still work offline) ─── */
+function setMode(m) {
+  mode=m; current={...modes[m]};
+  document.querySelectorAll('.ctrl-btn').forEach(b=>b.classList.toggle('active', b.textContent.toLowerCase()===m));
+  updateUI(); addLogRow('Live', current);
+}
+
+function onContainerChange(val) {
+  document.getElementById('canvasContainerLabel').textContent=val;
+  document.getElementById('headerContainerId').textContent=val;
+}
+
+let activeTab='live';
+function switchTab(tab) {
+  activeTab=tab;
+  document.getElementById('tabBtnLive').classList.toggle('active',tab==='live');
+  document.getElementById('tabBtnUpload').classList.toggle('active',tab==='upload');
+  document.getElementById('tabLive').style.display=tab==='live'?'':'none';
+  document.getElementById('tabUpload').style.display=tab==='upload'?'':'none';
+}
+
+/* ─── UI UPDATE ─── */
+function updateUI() {
+  const d=current;
+  const pct=Math.min(1,d.area/4);
+  const arcLen=172;
+  document.getElementById('gaugeArc').setAttribute('stroke-dashoffset',(arcLen-pct*arcLen).toFixed(1));
+  document.getElementById('gaugeText').textContent=d.area.toFixed(1);
+  document.getElementById('gaugeArc').setAttribute('stroke',pct<0.2?'#378ADD':pct<0.5?'#EF9F27':'#E24B4A');
+  document.getElementById('escapeLabel').textContent=pct<0.1?'Minimal — normal seal':pct<0.3?'Minor seal gap (~5% door area)':pct<0.6?'Significant buckle (~20% door area)':'Critical — door may be open (~70%)';
+  const deltaEl=document.getElementById('deltaNum');
+  deltaEl.textContent=d.delta+'°C';
+  document.getElementById('needle').style.left=(Math.min(0.97,d.delta/35)*100).toFixed(1)+'%';
+  deltaEl.style.color=d.delta<10?'#378ADD':d.delta<25?'#EF9F27':'#E24B4A';
+  const badge=document.getElementById('statusBadge');
+  badge.className='badge '+(d.delta<10?'badge-green':d.delta<25?'badge-yellow':'badge-red');
+  badge.innerHTML='<span class="badge-dot"></span>'+(d.delta<10?'Normal':d.delta<25?'Moderate':'Critical');
+  document.getElementById('statusMsg').textContent=d.msg;
+  document.getElementById('denyBanner').classList.toggle('show',d.delta>=25);
+  const h=d.health;
+  document.getElementById('healthPct').textContent=h+'%';
+  document.getElementById('healthFill').style.width=h+'%';
+  document.getElementById('healthFill').style.background=h>70?'#639922':h>40?'#EF9F27':'#E24B4A';
+  const due=new Date(); due.setMonth(due.getMonth()+Math.max(1,Math.round(h/10)));
+  document.getElementById('maintDate').textContent='Next service: '+due.toLocaleDateString('en-US',{month:'short',year:'numeric'});
+  const zones=[
+    {label:'Door seal',val:+(d.area*0.55).toFixed(1),max:1.5},
+    {label:'T-bar floor',val:+(d.area*0.30).toFixed(1),max:1.0},
+    {label:'Cooling vent',val:+(d.area*0.15).toFixed(1),max:0.5}
+  ];
+  document.getElementById('leakZones').innerHTML=zones.map(z=>{
+    const p=Math.min(100,z.val/z.max*100);
+    const col=p<30?'#378ADD':p<65?'#EF9F27':'#E24B4A';
+    return `<div class="zone-row"><div class="zone-meta"><span>${z.label}</span><span>${z.val.toFixed(1)} m²</span></div><div class="zone-track"><div class="zone-fill" style="width:${p.toFixed(1)}%;background:${col};"></div></div></div>`;
+  }).join('');
+}
+
+/* ─── LOCAL LOG ROW (offline fallback) ─── */
+function addLogRow(source, d) {
+  const body=document.getElementById('logBody');
+  const now=new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const verdict=d.delta<10?'<span style="color:#3B6D11;font-weight:600;">Clear</span>':d.delta<25?'<span style="color:#854F0B;font-weight:600;">Flag</span>':'<span style="color:#A32D2D;font-weight:600;">Deny</span>';
+  const srcPill=source==='Live'?'<span class="src-pill src-live">Live</span>':'<span class="src-pill src-image">Image</span>';
+  const row=document.createElement('tr');
+  row.innerHTML=`<td>${now}</td><td style="font-family:monospace;font-size:11px;">${document.getElementById('containerSel').value}</td><td>${srcPill}</td><td>--</td><td>--</td><td>${d.delta}°C</td><td>${verdict}</td>`;
+  body.insertBefore(row,body.firstChild);
+  if(body.children.length>15)body.removeChild(body.lastChild);
+}
+
+/* ─── LIVE THERMAL CANVAS ─── */
+const canvas=document.getElementById('thermalCanvas');
+const ctx=canvas.getContext('2d');
+let W,H,time=0,scanX=0;
+function resizeCanvas(){W=canvas.offsetWidth;H=canvas.offsetHeight;canvas.width=W*devicePixelRatio;canvas.height=H*devicePixelRatio;ctx.scale(devicePixelRatio,devicePixelRatio)}
+resizeCanvas(); window.addEventListener('resize',resizeCanvas);
+function drawThermal(){
+  ctx.clearRect(0,0,W,H);ctx.fillStyle='#07121e';ctx.fillRect(0,0,W,H);
+  const pad=14;ctx.strokeStyle='rgba(0,200,255,0.12)';ctx.lineWidth=1;ctx.strokeRect(pad,pad,W-pad*2,H-pad*2);
+  (current.leaks||[]).forEach(lk=>{
+    const px=lk.x*W,py=lk.y*H,pulse=.75+.25*Math.sin(time*.04+lk.x*8),radius=lk.r*W*pulse;
+    const g=ctx.createRadialGradient(px,py,0,px,py,radius);
+    if(lk.t>55){g.addColorStop(0,`rgba(255,50,10,${.88*pulse})`);g.addColorStop(.35,`rgba(255,140,0,${.55*pulse})`);g.addColorStop(.7,`rgba(255,210,0,${.2*pulse})`);}
+    else if(lk.t>38){g.addColorStop(0,`rgba(255,190,0,${.75*pulse})`);g.addColorStop(.5,`rgba(0,190,255,${.2*pulse})`);}
+    else{g.addColorStop(0,`rgba(0,180,255,${.4*pulse})`);g.addColorStop(.6,`rgba(0,80,180,${.1*pulse})`);}
+    g.addColorStop(1,'transparent');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+    if(lk.r>.08){ctx.beginPath();ctx.arc(px,py,5,0,Math.PI*2);ctx.fillStyle=lk.t>55?'#ff3010':'#ffcc00';ctx.fill();ctx.font='500 10px monospace';ctx.fillStyle=lk.t>55?'rgba(255,90,30,.9)':'rgba(255,200,0,.85)';ctx.fillText(lk.t>55?'\u26a0 CRITICAL LEAK':'\u26a0 HEAT LOSS',px+10,py-8);}
+  });
+  [[.42,.5],[.58,.3],[.75,.7]].forEach(([fx,fy])=>{const px=fx*W,py=fy*H,g=ctx.createRadialGradient(px,py,0,px,py,40);g.addColorStop(0,'rgba(0,80,200,.1)');g.addColorStop(1,'transparent');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);});
+  scanX=(scanX+1.8)%W;ctx.beginPath();ctx.moveTo(scanX,0);ctx.lineTo(scanX,H);ctx.strokeStyle='rgba(0,230,255,.45)';ctx.lineWidth=1.2;ctx.stroke();
+  const sg=ctx.createLinearGradient(scanX-30,0,scanX+15,0);sg.addColorStop(0,'transparent');sg.addColorStop(.7,'rgba(0,230,255,.04)');sg.addColorStop(1,'transparent');ctx.fillStyle=sg;ctx.fillRect(scanX-30,0,45,H);
+  const corners=[[pad,pad],[W-pad,pad],[pad,H-pad],[W-pad,H-pad]];ctx.strokeStyle='rgba(0,220,255,.5)';ctx.lineWidth=1.2;
+  corners.forEach(([bx,by],i)=>{const dx=i%2===0?1:-1,dy=i<2?1:-1;ctx.beginPath();ctx.moveTo(bx,by+dy*14);ctx.lineTo(bx,by);ctx.lineTo(bx+dx*18,by);ctx.stroke();});
+  const lgx=W-85,lgy=H-14,lg=ctx.createLinearGradient(lgx,lgy,lgx+75,lgy);lg.addColorStop(0,'#0050c8');lg.addColorStop(.4,'#00b4e0');lg.addColorStop(.75,'#ffc800');lg.addColorStop(1,'#ff2800');ctx.fillStyle=lg;ctx.fillRect(lgx,lgy-5,75,7);
+  ctx.font='9px monospace';ctx.fillStyle='rgba(160,210,230,.6)';ctx.fillText('cold',lgx,lgy-8);ctx.fillText('hot',lgx+65,lgy-8);
+  time++;requestAnimationFrame(drawThermal);
+}
+drawThermal();
+
+/* ─── IMAGE UPLOAD ─── */
+let scanInterval=null;
+function handleUpload(e){
+  const file=e.target.files[0];if(!file)return;
+  document.getElementById('uploadFileName').textContent=file.name;
+  document.getElementById('uploadArea').style.display='none';
+  document.getElementById('imgPreviewWrap').style.display='block';
+  document.getElementById('rescanBtn').style.display='';
+  document.getElementById('clearBtn').style.display='';
+  document.getElementById('imgResultOverlay').classList.remove('show');
+  const reader=new FileReader();
+  reader.onload=ev=>{document.getElementById('imgPreview').src=ev.target.result;document.getElementById('scanOverlayCanvas').getContext('2d').clearRect(0,0,9999,9999);runImageScan(ev.target.result);};
+  reader.readAsDataURL(file);
+}
+function runImageScan(src){
+  const bar=document.getElementById('scanningBar'),prog=document.getElementById('scanProgress'),fill=document.getElementById('progFill'),label=document.getElementById('progLabel'),overlay=document.getElementById('imgResultOverlay');
+  bar.style.display='block';overlay.classList.remove('show');prog.classList.add('show');fill.style.width='0%';
+  const steps=[[15,'Initializing YOLOv8 model...'],[32,'Detecting container boundaries...'],[50,'Isolating thermal zones...'],[68,'Calculating \u0394T thresholds...'],[85,'Running anomaly detection...'],[100,'Analysis complete']];
+  let s=0;clearInterval(scanInterval);
+  scanInterval=setInterval(()=>{if(s>=steps.length){clearInterval(scanInterval);bar.style.display='none';setTimeout(()=>{prog.classList.remove('show');finishImageScan();},400);return;}fill.style.width=steps[s][0]+'%';label.textContent=steps[s][1];s++;},520);
+}
+function finishImageScan(){
+  const picked=['normal','moderate','critical'][Math.floor(Math.random()*3)];
+  current={...modes[picked]};
+  const overlay=document.getElementById('imgResultOverlay'),oCanvas=document.getElementById('scanOverlayCanvas'),img=document.getElementById('imgPreview');
+  const W2=img.offsetWidth,H2=img.offsetHeight;
+  oCanvas.width=W2*devicePixelRatio;oCanvas.height=H2*devicePixelRatio;oCanvas.style.width=W2+'px';oCanvas.style.height=H2+'px';
+  const oc=oCanvas.getContext('2d');oc.scale(devicePixelRatio,devicePixelRatio);oc.clearRect(0,0,W2,H2);
+  current.leaks.forEach(lk=>{
+    const px=lk.x*W2,py=lk.y*H2,bw=lk.r*W2*1.6,bh=lk.r*W2*1.6,bx=px-bw/2,by=py-bh/2;
+    const col=lk.t>55?'#E24B4A':lk.t>38?'#EF9F27':'#378ADD',lbl=lk.t>55?'Critical leak':lk.t>38?'Heat loss':'Minor variation';
+    oc.strokeStyle=col;oc.lineWidth=2;oc.strokeRect(bx,by,bw,bh);
+    const cw=14;[[bx,by],[bx+bw,by],[bx,by+bh],[bx+bw,by+bh]].forEach(([cx,cy],i)=>{const dx=i%2===0?1:-1,dy=i<2?1:-1;oc.beginPath();oc.moveTo(cx,cy+dy*cw);oc.lineTo(cx,cy);oc.lineTo(cx+dx*cw,cy);oc.stroke();});
+    oc.fillStyle=col+'cc';oc.fillRect(bx,by-18,Math.min(bw,120),16);oc.fillStyle='#fff';oc.font='500 10px monospace';oc.fillText(`${lbl} (${lk.t}\u00b0C)`,bx+4,by-5);
+  });
+  const tc=picked==='normal'?'img-tag-blue':picked==='moderate'?'img-tag-yellow':'img-tag-red';
+  const verdict=picked==='critical'?'DENY ENTRY':picked==='moderate'?'FLAG FOR REVIEW':'CLEAR';
+  overlay.innerHTML=`<div style="display:flex;flex-wrap:wrap;"><span class="img-tag ${tc}">\u0394T = ${current.delta}\u00b0C</span><span class="img-tag ${tc}">${current.area.toFixed(1)} m\u00b2 escape</span><span class="img-tag ${tc}">Health: ${current.health}%</span><span class="img-tag ${picked==='critical'?'img-tag-red':tc}">${verdict}</span></div>`;
+  overlay.classList.add('show');
+  updateUI();addLogRow('Image',current);
+  /* Push image scan to API too */
+  triggerAPISimulate();
+}
+function rescan(){document.getElementById('scanOverlayCanvas').getContext('2d').clearRect(0,0,9999,9999);document.getElementById('imgResultOverlay').classList.remove('show');runImageScan(document.getElementById('imgPreview').src);}
+function clearUpload(){clearInterval(scanInterval);document.getElementById('imgPreviewWrap').style.display='none';document.getElementById('uploadArea').style.display='flex';document.getElementById('rescanBtn').style.display='none';document.getElementById('clearBtn').style.display='none';document.getElementById('uploadFileName').textContent='';document.getElementById('scanProgress').classList.remove('show');document.getElementById('scanningBar').style.display='none';document.getElementById('fileInput').value='';current={...modes[mode]};updateUI();}
+
+/* ─── INIT ─── */
+updateUI(); addLogRow('Live',current);
+</script>
+
+<!-- OGL Galaxy Background -->
+<script type="module">
+import{Renderer,Program,Mesh,Triangle}from'https://unpkg.com/ogl@1.0.11/src/index.js';
+(function(){
+const ctn=document.getElementById('galaxyContainer');
+const CFG={focal:[.5,.5],rotation:[1,0],starSpeed:.5,density:1,hueShift:140,speed:1,glowIntensity:.3,saturation:0,mouseRepulsion:true,repulsionStrength:2,twinkleIntensity:.3,rotationSpeed:.1,autoCenterRepulsion:0,transparent:true};
+const vert=`attribute vec2 uv;attribute vec2 position;varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position,0,1);}`;
+const frag=`precision highp float;uniform float uTime;uniform vec3 uResolution;uniform vec2 uFocal;uniform vec2 uRotation;uniform float uStarSpeed;uniform float uDensity;uniform float uHueShift;uniform float uSpeed;uniform vec2 uMouse;uniform float uGlowIntensity;uniform float uSaturation;uniform bool uMouseRepulsion;uniform float uTwinkleIntensity;uniform float uRotationSpeed;uniform float uRepulsionStrength;uniform float uMouseActiveFactor;uniform float uAutoCenterRepulsion;uniform bool uTransparent;varying vec2 vUv;
+#define NUM_LAYER 4.0
+#define MAT45 mat2(0.7071,-0.7071,0.7071,0.7071)
+#define PERIOD 3.0
+float Hash21(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
+float tri(float x){return abs(fract(x)*2.-1.);}
+float tris(float x){float t=fract(x);return 1.-smoothstep(0.,1.,abs(2.*t-1.));}
+float trisn(float x){float t=fract(x);return 2.*(1.-smoothstep(0.,1.,abs(2.*t-1.)))-1.;}
+vec3 hsv2rgb(vec3 c){vec4 K=vec4(1.,2./3.,1./3.,3.);vec3 p=abs(fract(c.xxx+K.xyz)*6.-K.www);return c.z*mix(K.xxx,clamp(p-K.xxx,0.,1.),c.y);}
+float Star(vec2 uv,float flare){float d=length(uv);float m=.05*uGlowIntensity/d;float rays=smoothstep(0.,1.,1.-abs(uv.x*uv.y*1000.));m+=rays*flare*uGlowIntensity;uv*=MAT45;rays=smoothstep(0.,1.,1.-abs(uv.x*uv.y*1000.));m+=rays*.3*flare*uGlowIntensity;m*=smoothstep(1.,.2,d);return m;}
+vec3 StarLayer(vec2 uv){vec3 col=vec3(0.);vec2 gv=fract(uv)-.5;vec2 id=floor(uv);for(int y=-1;y<=1;y++){for(int x=-1;x<=1;x++){vec2 offset=vec2(float(x),float(y));vec2 si=id+vec2(float(x),float(y));float seed=Hash21(si);float size=fract(seed*345.32);float glossLocal=tri(uStarSpeed/(PERIOD*seed+1.));float flareSize=smoothstep(.9,1.,size)*glossLocal;float red=smoothstep(.2,1.,Hash21(si+1.))+.2;float blu=smoothstep(.2,1.,Hash21(si+3.))+.2;float grn=min(red,blu)*seed;vec3 base=vec3(red,grn,blu);float hue=atan(base.g-base.r,base.b-base.r)/(2.*3.14159)+.5;hue=fract(hue+uHueShift/360.);float sat=length(base-vec3(dot(base,vec3(.299,.587,.114))))*uSaturation;float val=max(max(base.r,base.g),base.b);base=hsv2rgb(vec3(hue,sat,val));vec2 pad=vec2(tris(seed*34.+uTime*uSpeed/10.),tris(seed*38.+uTime*uSpeed/30.))-.5;float star=Star(gv-offset-pad,flareSize);float twinkle=trisn(uTime*uSpeed+seed*6.2831)*.5+1.;twinkle=mix(1.,twinkle,uTwinkleIntensity);star*=twinkle;col+=star*size*base;}}return col;}
+void main(){vec2 focalPx=uFocal*uResolution.xy;vec2 uv=(vUv*uResolution.xy-focalPx)/uResolution.y;if(uMouseRepulsion){vec2 mousePosUV=(uMouse*uResolution.xy-focalPx)/uResolution.y;float mouseDist=length(uv-mousePosUV);vec2 repulsion=normalize(uv-mousePosUV)*(uRepulsionStrength/(mouseDist+.1));uv+=repulsion*.05*uMouseActiveFactor;}float autoRotAngle=uTime*uRotationSpeed;mat2 autoRot=mat2(cos(autoRotAngle),-sin(autoRotAngle),sin(autoRotAngle),cos(autoRotAngle));uv=autoRot*uv;uv=mat2(uRotation.x,-uRotation.y,uRotation.y,uRotation.x)*uv;vec3 col=vec3(0.);for(float i=0.;i<1.;i+=1./NUM_LAYER){float depth=fract(i+uStarSpeed*uSpeed);float scale=mix(20.*uDensity,.5*uDensity,depth);float fade=depth*smoothstep(1.,.9,depth);col+=StarLayer(uv*scale+i*453.32)*fade;}if(uTransparent){float alpha=length(col);alpha=smoothstep(0.,.3,alpha);alpha=min(alpha,1.);gl_FragColor=vec4(col,alpha);}else{gl_FragColor=vec4(col,1.);}}`;
+const renderer=new Renderer({alpha:true,premultipliedAlpha:false});
+const gl=renderer.gl;gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.clearColor(0,0,0,0);
+let program;
+function resize(){renderer.setSize(ctn.offsetWidth,ctn.offsetHeight);if(program)program.uniforms.uResolution.value=[gl.canvas.width,gl.canvas.height,gl.canvas.width/gl.canvas.height];}
+window.addEventListener('resize',resize);
+const geometry=new Triangle(gl);
+program=new Program(gl,{vertex:vert,fragment:frag,uniforms:{uTime:{value:0},uResolution:{value:[ctn.offsetWidth,ctn.offsetHeight,ctn.offsetWidth/ctn.offsetHeight]},uFocal:{value:new Float32Array(CFG.focal)},uRotation:{value:new Float32Array(CFG.rotation)},uStarSpeed:{value:CFG.starSpeed},uDensity:{value:CFG.density},uHueShift:{value:CFG.hueShift},uSpeed:{value:CFG.speed},uMouse:{value:new Float32Array([.5,.5])},uGlowIntensity:{value:CFG.glowIntensity},uSaturation:{value:CFG.saturation},uMouseRepulsion:{value:CFG.mouseRepulsion},uTwinkleIntensity:{value:CFG.twinkleIntensity},uRotationSpeed:{value:CFG.rotationSpeed},uRepulsionStrength:{value:CFG.repulsionStrength},uMouseActiveFactor:{value:0},uAutoCenterRepulsion:{value:0},uTransparent:{value:true}}});
+const mesh=new Mesh(gl,{geometry,program});ctn.appendChild(gl.canvas);resize();
+let tMX=.5,tMY=.5,sMX=.5,sMY=.5,tA=0,sA=0;
+document.addEventListener('mousemove',e=>{const r=ctn.getBoundingClientRect();tMX=(e.clientX-r.left)/r.width;tMY=1-(e.clientY-r.top)/r.height;tA=1.});
+document.addEventListener('mouseleave',()=>{tA=0;});
+function frame(t){requestAnimationFrame(frame);const time=t*.001;program.uniforms.uTime.value=time;program.uniforms.uStarSpeed.value=time*CFG.starSpeed/10;sMX+=(tMX-sMX)*.05;sMY+=(tMY-sMY)*.05;sA+=(tA-sA)*.05;program.uniforms.uMouse.value[0]=sMX;program.uniforms.uMouse.value[1]=sMY;program.uniforms.uMouseActiveFactor.value=sA;renderer.render({scene:mesh});}
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+# Thermal Sentinel - Unified Dataset Config
+path: ./data/reefer_dataset.v2i.yolov8
+train: train/images
+val:   valid/images
+test:  test/images
+
+nc: 2
+names:
+  0: reefer_normal
+  1: thermal_leak
