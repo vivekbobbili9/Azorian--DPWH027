@@ -1,12 +1,104 @@
 # 🌡️ Azorian · Thermal Sentinel
 
-> **AI-powered thermal leak detection system for reefer (refrigerated) shipping containers** — built for DP World Hackathon 2027 (DPWH027)
-
-A real-time port gate intelligence system that scans containers using thermal imaging, detects refrigerant leaks using YOLOv8 + Gaussian anomaly injection, logs every scan to a SQLite database, and streams live results to a web dashboard.
+> AI-powered thermal leak detection system for reefer containers — DP World Hackathon 2027 (DPWH027)
 
 ---
 
-## 🏗️ Architecture
+## ⚡ Quick Start — For Judges
+
+> **Total time: ~10 minutes.** Just 4 steps. No manual configuration needed.
+
+---
+
+### Before you begin — install these two things:
+
+| Software | Download Link |
+|----------|--------------|
+| **Python 3.11** | https://www.python.org/downloads/release/python-3119/ → scroll down → **Windows installer (64-bit)** → ⚠️ tick **"Add Python to PATH"** before installing |
+| **Git** | https://git-scm.com/download/win → download and install with all default settings |
+
+---
+
+### Step 1 — Clone the repository
+
+Open **Command Prompt** (search "cmd" in Start menu) and run:
+
+```
+git clone https://github.com/vivekbobbili9/Azorian--DPWH027.git
+cd Azorian--DPWH027
+```
+
+---
+
+### Step 2 — Run setup (one time only)
+
+In File Explorer, open the `Azorian--DPWH027` folder and **double-click `setup.bat`**
+
+Or in CMD:
+```
+setup.bat
+```
+
+> ⏳ This installs all dependencies. Takes **5–10 minutes** the first time.  
+> If you see any red errors — just wait, it keeps going and usually succeeds.
+
+---
+
+### Step 3 — Start everything
+
+In the same folder, **double-click `start_all.bat`**
+
+Or in CMD:
+```
+start_all.bat
+```
+
+> This opens 3 terminal windows automatically + launches the browser.
+
+---
+
+### Step 4 — View the dashboard
+
+Your browser will open automatically to:
+```
+http://localhost:3000/dashboard.html
+```
+
+If it doesn't open automatically, paste that link into your browser manually.
+
+---
+
+### ✅ What you'll see
+
+- **Live scan panel** — thermal images being scanned with AI detection
+- **Stats bar** — total scans, critical alerts, safe containers, detection rate
+- **← Prev / Next →** buttons — browse through images from the dashboard
+- **Scan history table** — every result logged in real time
+- **DENY GATE ENTRY banner** — flashes red when a critical leak is detected
+
+---
+
+### ❌ Troubleshooting
+
+| Problem | Fix |
+|---------|-----|
+| `python not found` | Reinstall Python 3.11, tick "Add Python to PATH" |
+| `pip install error / subprocess failed` | Run `setup.bat` again — it uses `--prefer-binary` flag to avoid build errors |
+| Dashboard shows `API Offline` | Wait 10 seconds — the API takes a moment to start |
+| Live frame says "Waiting for detector" | Wait 20 seconds for the detector to load images |
+| Port already in use | Restart your PC and try again |
+
+---
+
+### To stop the system
+
+Close the 3 black terminal windows that `start_all.bat` opened.
+
+---
+
+---
+
+## 🏗️ How It Works
 
 ```
   Thermal Images ──► detector.py ──► POST /scan + POST /frame
@@ -17,19 +109,39 @@ A real-time port gate intelligence system that scans containers using thermal im
                                      dashboard.html  ◄── Browser
 ```
 
+### Detection Pipeline
+
+```
+1. Load thermal images from sample_data/ folder
+      ↓
+2. YOLOv8 detects container boundaries in each image
+      ↓
+3. Gaussian hotspot injected on ~45% of images (simulates refrigerant leak)
+      ↓
+4. Peak temperature calculated from pixel brightness
+   — SAFE      below 40°C delta
+   — MODERATE  40–60°C delta
+   — CRITICAL  above 60°C delta
+      ↓
+5. Result saved to SQLite database via POST /scan
+      ↓
+6. Frame encoded as JPEG → sent to dashboard via POST /frame
+      ↓
+7. Dashboard updated instantly via WebSocket
+```
+
 ---
 
 ## 🛠️ Technology Stack
 
 | Layer | Technology |
 |-------|-----------|
-| **AI / Detection** | YOLOv8 (Ultralytics) — container boundary detection |
+| **AI / Detection** | YOLOv8 (Ultralytics) |
 | **Thermal Simulation** | OpenCV + NumPy — Gaussian hotspot injection |
 | **Backend API** | FastAPI + Uvicorn — REST + WebSocket |
-| **Database** | SQLite (auto-created, no setup needed) |
-| **Frontend** | Vanilla HTML / CSS / JavaScript |
-| **Live Streaming** | JPEG-over-HTTP + WebSocket push |
-| **Training Data** | FLIR Thermal Dataset + Small-WTB-Thermal1 + Reefer Dataset v2 |
+| **Database** | SQLite (auto-created on first run) |
+| **Frontend** | HTML / CSS / JavaScript — no framework |
+| **Live Feed** | JPEG-over-HTTP + WebSocket push |
 
 ---
 
@@ -38,228 +150,34 @@ A real-time port gate intelligence system that scans containers using thermal im
 ```
 Azorian--DPWH027/
 │
+├── sample_data/              ← Sample thermal images (included — works out of the box)
+│
 ├── src/
 │   ├── main.py               ← FastAPI backend
-│   ├── detector.py           ← Local thermal scanner
+│   ├── detector.py           ← Thermal scanner + YOLO detection
 │   ├── database.py           ← SQLite helpers
-│   ├── models.py             ← Pydantic schemas
-│   └── api.py                ← API helpers
+│   └── models.py             ← Data schemas
 │
-├── dashboard.html            ← Frontend UI
+├── dashboard.html            ← Web dashboard (frontend)
+├── setup.bat                 ← One-click dependency installer
+├── start_all.bat             ← One-click start all services
 ├── requirements.txt          ← API dependencies
-├── requirements-local.txt    ← Detector dependencies (YOLO + OpenCV)
-└── README.md
+└── requirements-local.txt    ← Detector dependencies
 ```
-
-> **Not included in repo** (too large):
-> `data/` datasets · `runs/best.pt` model weights · `.venv/` virtual env
-
----
-
-## 🖥️ Run Locally — Step by Step
-
-Follow these exact steps to run the full system on your own machine.
-
----
-
-### ✅ Prerequisites
-
-Make sure you have these installed before starting:
-
-- **Python 3.11** → [python.org/downloads](https://www.python.org/downloads/)
-- **Git** → [git-scm.com](https://git-scm.com/)
-- **Your thermal images** — a folder on your PC with `.jpg` / `.png` thermal images
-
----
-
-### Step 1 — Get the code from GitHub
-
-Open **Command Prompt** and run:
-
-```cmd
-git clone https://github.com/vivekbobbili9/Azorian--DPWH027.git
-```
-
-Then enter the project folder:
-
-```cmd
-cd Azorian--DPWH027
-```
-
----
-
-### Step 2 — Install dependencies
-
-Install the API dependencies:
-
-```cmd
-pip install -r requirements.txt
-```
-
-Install the detector dependencies (YOLO + OpenCV):
-
-```cmd
-pip install -r requirements-local.txt
-```
-
-> ⏳ This may take 5–10 minutes the first time (downloads PyTorch + Ultralytics)
-
----
-
-### Step 3 — Point the detector to your images
-
-Open `src/detector.py` in any text editor and find this section (around line 55):
-
-```python
-DATASET_DIRS = [
-    Path(r"C:\Users\bandi\Downloads\thermul"),
-    Path(r"C:\Users\bandi\Downloads\THERMAL-SENTINEL\data\..."),
-]
-```
-
-**Change these paths to YOUR thermal image folder.** Example:
-
-```python
-DATASET_DIRS = [
-    Path(r"C:\Users\YourName\Downloads\my-thermal-images"),
-]
-```
-
-> ℹ️ Any folder with `.jpg` or `.png` images works. Even normal photos — the system converts them to thermal colormap automatically.
-
----
-
-### Step 4 — Open 3 separate Command Prompt windows
-
-You need **3 terminals open at the same time**.
-
----
-
-**Terminal 1 — Start the API:**
-
-```cmd
-cd Azorian--DPWH027\src
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
-```
-
-You should see:
-```
-INFO:     Uvicorn running on http://0.0.0.0:8000
-✅ Database initialized!
-```
-
----
-
-**Terminal 2 — Start the detector:**
-
-```cmd
-cd Azorian--DPWH027
-python src/detector.py
-```
-
-You should see:
-```
-✅ Model: yolov8n.pt
-🚀 245 images loaded.
-📡 API → MSCU1234567 | 68.3°C | 201
-```
-
-> An OpenCV window also opens showing the thermal scan live.
-
----
-
-**Terminal 3 — Serve the dashboard:**
-
-```cmd
-cd Azorian--DPWH027
-python -m http.server 3000
-```
-
----
-
-### Step 5 — Open the dashboard
-
-Open your browser and go to:
-
-```
-http://localhost:3000/dashboard.html
-```
-
-Or go directly to the API (also serves dashboard):
-
-```
-http://127.0.0.1:8000
-```
-
----
-
-### Step 6 — What you should see
-
-| Panel | What it shows |
-|-------|--------------|
-| **Live scan** | Real thermal frame from your detector, updates every scan |
-| **← Prev / Next →** | Control which image the detector is on |
-| **Stats bar** | Total scans, Critical, Safe, Moderate, Detection rate |
-| **Status badge** | SAFE / MODERATE / CRITICAL based on latest scan |
-| **ΔT gauge** | Temperature difference from ambient |
-| **Scan history table** | Every scan result with timestamp and verdict |
-
----
-
-### Controls
-
-| Key / Button | Action |
-|---|---|
-| `Next →` on dashboard | Go to next image |
-| `← Prev` on dashboard | Go to previous image |
-| `Q` in OpenCV window | Quit the detector |
-| `Ctrl+C` in any terminal | Stop that service |
-
----
-
-### Stopping everything
-
-Press `Ctrl+C` in each of the 3 terminals to stop.
 
 ---
 
 ## 🔌 API Endpoints
-
-Once the API is running, you can view all endpoints at:
-```
-http://127.0.0.1:8000/docs
-```
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/` | Dashboard UI |
 | `GET` | `/stats` | KPI summary |
 | `GET` | `/scans` | Scan history |
-| `POST` | `/scan` | Submit a scan |
+| `POST` | `/scan` | Submit a scan result |
 | `GET` | `/frame` | Latest thermal frame |
 | `WS` | `/ws/alerts` | Real-time WebSocket alerts |
-
----
-
-## 🌡️ How It Works
-
-```
-1. detector.py loads images from your folder
-      ↓
-2. YOLOv8 finds the container region (falls back to full frame)
-      ↓
-3. Gaussian hotspot injected on 45% of images (simulates a leak)
-      ↓
-4. Peak temperature calculated from pixel brightness
-   SAFE < 40°C  |  MODERATE 40–60°C  |  CRITICAL > 60°C
-      ↓
-5. Result POSTed to /scan → saved in SQLite database
-      ↓
-6. Frame encoded as JPEG → POSTed to /frame
-      ↓
-7. Dashboard receives NEW_FRAME via WebSocket
-   → All panels update instantly
-```
+| `GET` | `/docs` | Interactive API explorer |
 
 ---
 

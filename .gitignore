@@ -29,3 +29,5 @@ Thumbs.db
 
 # Local thermal images (your private datasets)
 thermul/
+
+# sample_data/ IS included in repo — do not ignore it

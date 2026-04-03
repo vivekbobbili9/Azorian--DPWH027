@@ -58,7 +58,8 @@ model = YOLO(str(model_path)) if model_path.exists() else YOLO('yolov8n.pt')
 print(f"✅ Model: {model_path if model_path.exists() else 'yolov8n.pt'}")
 
 DATASET_DIRS = [
-    Path(r"C:\Users\bandi\Downloads\thermul"),
+    Path("sample_data"),                          # ← included in repo, works for everyone
+    Path(r"C:\Users\bandi\Downloads\thermul"),    # original local path
     Path(r"C:\Users\bandi\Downloads\THERMAL-SENTINEL\data\reefer_dataset.v2i.yolov8\train\images"),
 ]
 
