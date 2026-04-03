@@ -14,7 +14,8 @@ from pathlib import Path
 import random, time, requests
 
 import os
-API_URL = os.environ.get("API_URL", "https://dpwh027.onrender.com")
+API_URL = os.environ.get("API_URL", "http://127.0.0.1:8000")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # API HELPERS
