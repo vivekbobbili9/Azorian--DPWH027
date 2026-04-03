@@ -2,57 +2,19 @@
 
 > **AI-powered thermal leak detection system for reefer (refrigerated) shipping containers** — built for DP World Hackathon 2027 (DPWH027)
 
-A real-time port gate intelligence system that scans containers using thermal imaging, detects refrigerant leaks using YOLOv8 + Gaussian anomaly injection, logs every scan to a database, and streams live results to a web dashboard.
-
----
-
-## 🖥️ Live Dashboard
-
-The dashboard is served directly by the API — once deployed, open your Render URL and the full UI is there.
-
-![Dashboard Preview](docs/dashboard_preview.png)
+A real-time port gate intelligence system that scans containers using thermal imaging, detects refrigerant leaks using YOLOv8 + Gaussian anomaly injection, logs every scan to a SQLite database, and streams live results to a web dashboard.
 
 ---
 
 ## 🏗️ Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      LOCAL (Port / Yard)                    │
-│                                                             │
-│  Thermal Datasets ──► detector.py ──► OpenCV Window         │
-│       (images)            │               (live view)       │
-│                           │                                 │
-│                    POST /scan  +  POST /frame               │
-└───────────────────────────┼─────────────────────────────────┘
-                            │  HTTP
-┌───────────────────────────▼─────────────────────────────────┐
-│                    CLOUD (Render)                           │
-│                                                             │
-│   FastAPI (main.py)                                         │
-│   ├── POST /scan       — ingest detection result            │
-│   ├── GET  /scans      — query scan history                 │
-│   ├── GET  /stats      — KPI summary                        │
-│   ├── POST /frame      — push live JPEG frame               │
-│   ├── GET  /frame      — serve latest frame to dashboard    │
-│   ├── POST /command    — send next/prev to detector         │
-│   ├── WS   /ws/alerts  — real-time WebSocket alerts         │
-│   └── GET  /           — serve dashboard.html               │
-│                                                             │
-│   SQLite DB (thermal_sentinel.db)                           │
-└─────────────────────────────────────────────────────────────┘
-                            │  WebSocket + HTTP
-┌───────────────────────────▼─────────────────────────────────┐
-│                    BROWSER (Operator)                       │
-│                                                             │
-│   dashboard.html                                            │
-│   ├── Live frame stream (from detector via /frame)          │
-│   ├── ← Prev / Next → controls (POST /command)              │
-│   ├── Stats bar (Total / Critical / Safe / Rate)            │
-│   ├── Status badge + Severity ΔT gauge                     │
-│   ├── Thermal escape area + Insulation health               │
-│   └── Scan history table (real-time, auto-refresh)         │
-└─────────────────────────────────────────────────────────────┘
+  Thermal Images ──► detector.py ──► POST /scan + POST /frame
+                                              │
+                                     FastAPI (main.py)
+                                     SQLite Database
+                                              │
+                                     dashboard.html  ◄── Browser
 ```
 
 ---
@@ -62,13 +24,12 @@ The dashboard is served directly by the API — once deployed, open your Render 
 | Layer | Technology |
 |-------|-----------|
 | **AI / Detection** | YOLOv8 (Ultralytics) — container boundary detection |
-| **Thermal Simulation** | OpenCV + NumPy — Gaussian hotspot injection on real thermal images |
+| **Thermal Simulation** | OpenCV + NumPy — Gaussian hotspot injection |
 | **Backend API** | FastAPI + Uvicorn — REST + WebSocket |
 | **Database** | SQLite (auto-created, no setup needed) |
-| **Frontend** | Vanilla HTML/CSS/JavaScript — no framework dependency |
+| **Frontend** | Vanilla HTML / CSS / JavaScript |
 | **Live Streaming** | JPEG-over-HTTP + WebSocket push |
-| **Deployment** | Render (cloud) / localhost (detector) |
-| **Training Data** | FLIR Thermal Dataset (Kaggle) + Small-WTB-Thermal1 (GitHub) |
+| **Training Data** | FLIR Thermal Dataset + Small-WTB-Thermal1 + Reefer Dataset v2 |
 
 ---
 
@@ -78,146 +39,237 @@ The dashboard is served directly by the API — once deployed, open your Render 
 Azorian--DPWH027/
 │
 ├── src/
-│   ├── main.py          ← FastAPI backend (deploy this on Render)
-│   ├── detector.py      ← Local thermal scanner (run on-site)
-│   ├── database.py      ← SQLite helpers
-│   ├── models.py        ← Pydantic schemas
-│   └── api.py           ← Legacy API helpers
+│   ├── main.py               ← FastAPI backend
+│   ├── detector.py           ← Local thermal scanner
+│   ├── database.py           ← SQLite helpers
+│   ├── models.py             ← Pydantic schemas
+│   └── api.py                ← API helpers
 │
-├── dashboard.html        ← Frontend UI (served by FastAPI)
-├── requirements.txt      ← Production deps (Render)
-├── requirements-local.txt← Local deps (detector + YOLO)
-├── render.yaml           ← Render deployment config
-├── reefer_data.yaml      ← YOLO dataset config
+├── dashboard.html            ← Frontend UI
+├── requirements.txt          ← API dependencies
+├── requirements-local.txt    ← Detector dependencies (YOLO + OpenCV)
 └── README.md
 ```
 
-> **Not in repo** (too large or local-only):
-> - `data/` — thermal image datasets (download separately)
-> - `runs/` — trained model weights (`best.pt`)
-> - `.venv/` — virtual environment
+> **Not included in repo** (too large):
+> `data/` datasets · `runs/best.pt` model weights · `.venv/` virtual env
 
 ---
 
-## 🚀 Deployment
+## 🖥️ Run Locally — Step by Step
 
-### Option A — Deploy API on Render (Recommended)
-
-1. Push this repo to GitHub (see steps below)
-2. Go to [render.com](https://render.com) → **New Web Service**
-3. Connect your GitHub repo: `vivekbobbili9/Azorian--DPWH027`
-4. Render auto-detects `render.yaml` — click **Deploy**
-5. Your API + dashboard will be live at:
-   ```
-   https://thermal-sentinel-api.onrender.com
-   ```
-
-**Render settings (if configuring manually):**
-| Setting | Value |
-|---------|-------|
-| Runtime | Python 3.11 |
-| Build Command | `pip install -r requirements.txt` |
-| Start Command | `uvicorn src.main:app --host 0.0.0.0 --port $PORT` |
-| Instance Type | Free |
+Follow these exact steps to run the full system on your own machine.
 
 ---
 
-### Option B — Run Locally (Full System)
+### ✅ Prerequisites
 
-**Step 1 — Install API dependencies:**
-```bash
+Make sure you have these installed before starting:
+
+- **Python 3.11** → [python.org/downloads](https://www.python.org/downloads/)
+- **Git** → [git-scm.com](https://git-scm.com/)
+- **Your thermal images** — a folder on your PC with `.jpg` / `.png` thermal images
+
+---
+
+### Step 1 — Get the code from GitHub
+
+Open **Command Prompt** and run:
+
+```cmd
+git clone https://github.com/vivekbobbili9/Azorian--DPWH027.git
+```
+
+Then enter the project folder:
+
+```cmd
+cd Azorian--DPWH027
+```
+
+---
+
+### Step 2 — Install dependencies
+
+Install the API dependencies:
+
+```cmd
 pip install -r requirements.txt
 ```
 
-**Step 2 — Install detector dependencies:**
-```bash
+Install the detector dependencies (YOLO + OpenCV):
+
+```cmd
 pip install -r requirements-local.txt
 ```
 
-**Step 3 — Start the API (Terminal 1):**
-```bash
-cd src
+> ⏳ This may take 5–10 minutes the first time (downloads PyTorch + Ultralytics)
+
+---
+
+### Step 3 — Point the detector to your images
+
+Open `src/detector.py` in any text editor and find this section (around line 55):
+
+```python
+DATASET_DIRS = [
+    Path(r"C:\Users\bandi\Downloads\thermul"),
+    Path(r"C:\Users\bandi\Downloads\THERMAL-SENTINEL\data\..."),
+]
+```
+
+**Change these paths to YOUR thermal image folder.** Example:
+
+```python
+DATASET_DIRS = [
+    Path(r"C:\Users\YourName\Downloads\my-thermal-images"),
+]
+```
+
+> ℹ️ Any folder with `.jpg` or `.png` images works. Even normal photos — the system converts them to thermal colormap automatically.
+
+---
+
+### Step 4 — Open 3 separate Command Prompt windows
+
+You need **3 terminals open at the same time**.
+
+---
+
+**Terminal 1 — Start the API:**
+
+```cmd
+cd Azorian--DPWH027\src
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-**Step 4 — Start the detector (Terminal 2):**
-```bash
+You should see:
+```
+INFO:     Uvicorn running on http://0.0.0.0:8000
+✅ Database initialized!
+```
+
+---
+
+**Terminal 2 — Start the detector:**
+
+```cmd
+cd Azorian--DPWH027
 python src/detector.py
 ```
 
-**Step 5 — Open the dashboard (Terminal 3):**
-```bash
-python -m http.server 3000
-# Then open: http://localhost:3000/dashboard.html
+You should see:
+```
+✅ Model: yolov8n.pt
+🚀 245 images loaded.
+📡 API → MSCU1234567 | 68.3°C | 201
 ```
 
-> Or just go to `http://127.0.0.1:8000` — the API serves the dashboard too.
+> An OpenCV window also opens showing the thermal scan live.
+
+---
+
+**Terminal 3 — Serve the dashboard:**
+
+```cmd
+cd Azorian--DPWH027
+python -m http.server 3000
+```
+
+---
+
+### Step 5 — Open the dashboard
+
+Open your browser and go to:
+
+```
+http://localhost:3000/dashboard.html
+```
+
+Or go directly to the API (also serves dashboard):
+
+```
+http://127.0.0.1:8000
+```
+
+---
+
+### Step 6 — What you should see
+
+| Panel | What it shows |
+|-------|--------------|
+| **Live scan** | Real thermal frame from your detector, updates every scan |
+| **← Prev / Next →** | Control which image the detector is on |
+| **Stats bar** | Total scans, Critical, Safe, Moderate, Detection rate |
+| **Status badge** | SAFE / MODERATE / CRITICAL based on latest scan |
+| **ΔT gauge** | Temperature difference from ambient |
+| **Scan history table** | Every scan result with timestamp and verdict |
+
+---
+
+### Controls
+
+| Key / Button | Action |
+|---|---|
+| `Next →` on dashboard | Go to next image |
+| `← Prev` on dashboard | Go to previous image |
+| `Q` in OpenCV window | Quit the detector |
+| `Ctrl+C` in any terminal | Stop that service |
+
+---
+
+### Stopping everything
+
+Press `Ctrl+C` in each of the 3 terminals to stop.
 
 ---
 
 ## 🔌 API Endpoints
 
+Once the API is running, you can view all endpoints at:
+```
+http://127.0.0.1:8000/docs
+```
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/` | Dashboard UI |
-| `GET` | `/health` | Health check |
-| `POST` | `/scan` | Ingest a scan result |
-| `GET` | `/scans` | Get scan history (last 24h) |
-| `GET` | `/stats` | KPI summary (total, critical, safe…) |
-| `POST` | `/simulate` | Trigger a random simulated scan |
-| `POST` | `/frame` | Push latest thermal JPEG (from detector) |
-| `GET` | `/frame` | Get latest thermal JPEG (to dashboard) |
-| `POST` | `/command` | Send next/prev command to detector |
-| `GET` | `/command` | Detector polls this for commands |
-| `WS` | `/ws/alerts` | WebSocket — real-time alert push |
-| `GET` | `/docs` | Interactive API docs (Swagger UI) |
+| `GET` | `/stats` | KPI summary |
+| `GET` | `/scans` | Scan history |
+| `POST` | `/scan` | Submit a scan |
+| `GET` | `/frame` | Latest thermal frame |
+| `WS` | `/ws/alerts` | Real-time WebSocket alerts |
 
 ---
 
-## 🌡️ How It Works — Workflow
+## 🌡️ How It Works
 
 ```
-1. detector.py loads thermal images from local folders
+1. detector.py loads images from your folder
       ↓
-2. YOLOv8 detects the container region (bounding box)
-   — Falls back to full frame if no box found
+2. YOLOv8 finds the container region (falls back to full frame)
       ↓
-3. A synthetic Gaussian hotspot is injected (45% chance)
-   — Simulates refrigerant leak using real thermal colormap
+3. Gaussian hotspot injected on 45% of images (simulates a leak)
       ↓
-4. Peak temperature is calculated from pixel brightness
-   — SAFE   < 40°C ΔT
-   — MODERATE  40–60°C ΔT  
-   — CRITICAL  > 60°C ΔT
+4. Peak temperature calculated from pixel brightness
+   SAFE < 40°C  |  MODERATE 40–60°C  |  CRITICAL > 60°C
       ↓
-5. Result is POSTed to /scan → stored in SQLite
+5. Result POSTed to /scan → saved in SQLite database
       ↓
-6. Display frame is encoded as JPEG → POSTed to /frame
+6. Frame encoded as JPEG → POSTed to /frame
       ↓
 7. Dashboard receives NEW_FRAME via WebSocket
-   → Fetches latest stats, scans, and frame image
-   → Updates all panels in real-time
+   → All panels update instantly
 ```
-
----
-
-## 📊 Dashboard Controls
-
-| Control | Action |
-|---------|--------|
-| `← Prev` / `Next →` | Navigate detector to previous/next image |
-| `Normal / Moderate / Critical` | Local UI simulation (offline mode) |
-| `Upload thermal image` tab | Upload any thermal image for simulated scan |
 
 ---
 
 ## 📦 Datasets Used
 
-| Dataset | Source | Purpose |
-|---------|--------|---------|
-| FLIR Thermal | [Kaggle](https://www.kaggle.com/datasets/deepnewbie/flir-thermal-images-dataset) | Real thermal imagery for simulation |
-| Small-WTB-Thermal1 | [GitHub](https://github.com/MoShekaramiz/Small-WTB-Thermal1) | Wind turbine thermal anomaly patterns |
-| Reefer Container Dataset v2 | Roboflow | YOLOv8 container detection training |
+| Dataset | Source |
+|---------|--------|
+| FLIR Thermal | [Kaggle](https://www.kaggle.com/datasets/deepnewbie/flir-thermal-images-dataset) |
+| Small-WTB-Thermal1 | [GitHub](https://github.com/MoShekaramiz/Small-WTB-Thermal1) |
+| Reefer Container Dataset v2 | Roboflow |
 
 ---
 
@@ -230,4 +282,4 @@ Built for the DP World Global Hackathon 2027
 
 ## 📄 License
 
-MIT License — free to use, modify, and distribute with attribution.
+MIT — free to use with attribution.
