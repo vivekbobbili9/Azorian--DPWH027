@@ -13,7 +13,8 @@ from ultralytics import YOLO
 from pathlib import Path
 import random, time, requests
 
-API_URL = "http://127.0.0.1:8000"
+import os
+API_URL = os.environ.get("API_URL", "https://dpwh027.onrender.com")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # API HELPERS
