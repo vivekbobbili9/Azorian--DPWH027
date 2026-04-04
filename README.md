@@ -24,15 +24,15 @@
 Open **Command Prompt** (search "cmd" in Start menu) and run:
 
 ```
-git clone https://github.com/vivekbobbili9/Azorian--DPWH027.git
-cd Azorian--DPWH027
+git clone https://github.com/vivekbobbili9/DPWH027.git
+cd DPWH027
 ```
 
 ---
 
 ### Step 2 — Run setup (one time only)
 
-In File Explorer, open the `Azorian--DPWH027` folder and **double-click `setup.bat`**
+In File Explorer, open the `DPWH027` folder and **double-click `setup.bat`**
 
 Or in CMD:
 ```
@@ -148,7 +148,7 @@ Close the 3 black terminal windows that `start_all.bat` opened.
 ## 📂 Repository Structure
 
 ```
-Azorian--DPWH027/
+DPWH027/
 │
 ├── sample_data/              ← Sample thermal images (included — works out of the box)
 │
