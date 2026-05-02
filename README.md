@@ -1,10 +1,8 @@
-# 🌡️ Azorian · Thermal Sentinel
+# 🌡️ Thermal Sentinel
 
-> AI-powered thermal leak detection system for reefer containers — DP World Hackathon 2027 (DPWH027)
+> AI-powered thermal leak detection system for reefer containers 
 
 ---
-
-## ⚡ Quick Start — For Judges
 
 > **Total time: ~10 minutes.** Just 4 steps. No manual configuration needed.
 
@@ -190,13 +188,8 @@ DPWH027/
 | Reefer Container Dataset v2 | Roboflow |
 
 ---
-
-## 👥 Team
-
-**DPWH027 — Azorian**  
-Built for the DP World Global Hackathon 2027
-
----
+Team (GitHub usernames)
+@aditcoolglass, @kartheekmadem, @paarthu26, @pyerrama-web
 
 ## 📄 License
 
